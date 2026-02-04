@@ -1,65 +1,74 @@
-const app = {
-    state: {
-        token: localStorage.getItem('access_token'),
-        user: JSON.parse(localStorage.getItem('user')),
-        currentPage: 'dashboard'
+token: localStorage.getItem('access_token'),
+    user: JSON.parse(localStorage.getItem('user')),
+        currentPage: 'dashboard',
+            organizations: [],
+                contacts: [],
+                    products: [],
     },
 
-    init() {
-        console.log('App initialization...');
-        this.renderNav();
-        if (!this.state.token) {
-            this.navigate('login');
-        } else {
-            this.navigate('dashboard');
-        }
-    },
-
-    navigate(page) {
-        this.state.currentPage = page;
-        this.render();
-    },
-
-    async login(username, password) {
-        try {
-            const response = await fetch('/api/auth/login/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            const data = await response.json();
-            if (response.ok) {
-                this.state.token = data.access;
-                this.state.user = data.user;
-                localStorage.setItem('access_token', data.access);
-                localStorage.setItem('refresh_token', data.refresh);
-                localStorage.setItem('user', JSON.stringify(data.user));
-                this.renderNav();
-                this.navigate('dashboard');
-            } else {
-                throw new Error(data.error || 'Login failed');
-            }
-        } catch (error) {
-            const errorEl = document.getElementById('login-error');
-            if (errorEl) {
-                errorEl.textContent = error.message;
-                errorEl.style.display = 'block';
-            }
-        }
-    },
-
-    logout() {
-        localStorage.clear();
-        this.state.token = null;
-        this.state.user = null;
-        this.renderNav();
+init() {
+    console.log('App initialization...');
+    this.renderNav();
+    if (!this.state.token) {
         this.navigate('login');
-    },
+    } else {
+        this.navigate('dashboard');
+    }
+},
 
-    renderNav() {
-        const navLinks = document.getElementById('nav-links');
-        if (this.state.token) {
-            navLinks.innerHTML = `
+navigate(page) {
+    this.state.currentPage = page;
+    if (page === 'organizations') this.loadOrganizations();
+    else if (page === 'contacts') {
+        this.api('/api/organizations/').then(res => res.json()).then(data => {
+            this.state.organizations = data;
+            this.loadContacts();
+        });
+    }
+    else if (page === 'products') this.loadProducts();
+    else this.render();
+},
+
+async login(username, password) {
+    try {
+        const response = await fetch('/api/auth/login/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            this.state.token = data.access;
+            this.state.user = data.user;
+            localStorage.setItem('access_token', data.access);
+            localStorage.setItem('refresh_token', data.refresh);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            this.renderNav();
+            this.navigate('dashboard');
+        } else {
+            throw new Error(data.error || 'Login failed');
+        }
+    } catch (error) {
+        const errorEl = document.getElementById('login-error');
+        if (errorEl) {
+            errorEl.textContent = error.message;
+            errorEl.style.display = 'block';
+        }
+    }
+},
+
+logout() {
+    localStorage.clear();
+    this.state.token = null;
+    this.state.user = null;
+    this.renderNav();
+    this.navigate('login');
+},
+
+renderNav() {
+    const navLinks = document.getElementById('nav-links');
+    if (this.state.token) {
+        navLinks.innerHTML = `
                 <a onclick="app.navigate('dashboard')">Dashboard</a>
                 <a onclick="app.navigate('organizations')">Organizations</a>
                 <a onclick="app.navigate('contacts')">Contacts</a>
@@ -67,16 +76,85 @@ const app = {
                 <a onclick="app.navigate('orders')">Orders</a>
                 <a onclick="app.logout()">Logout (${this.state.user.username})</a>
             `;
-        } else {
-            navLinks.innerHTML = `<a onclick="app.navigate('login')">Login</a>`;
-        }
-    },
+    } else {
+        navLinks.innerHTML = `<a onclick="app.navigate('login')">Login</a>`;
+    }
+},
 
-    render() {
-        const main = document.getElementById('main-content');
-        switch (this.state.currentPage) {
-            case 'login':
-                main.innerHTML = `
+async api(url, method = 'GET', body = null) {
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+    if (this.state.token) {
+        headers['Authorization'] = `Bearer ${this.state.token}`;
+    }
+    const options = { method, headers };
+    if (body) options.body = JSON.stringify(body);
+
+    const response = await fetch(url, options);
+    if (response.status === 401 && this.state.token) {
+        this.logout();
+        return;
+    }
+    return response;
+},
+
+async loadOrganizations() {
+    const res = await this.api('/api/organizations/');
+    if (res && res.ok) {
+        this.state.organizations = await res.json();
+        this.render();
+    }
+},
+
+async loadContacts() {
+    const res = await this.api('/api/contacts/');
+    if (res && res.ok) {
+        this.state.contacts = await res.json();
+        this.render();
+    }
+},
+
+async createOrganization(data) {
+    const res = await this.api('/api/organizations/', 'POST', data);
+    if (res && res.ok) {
+        this.navigate('organizations');
+    }
+},
+
+async createContact(data) {
+    const res = await this.api('/api/contacts/', 'POST', data);
+    if (res && res.ok) {
+        this.navigate('contacts');
+    }
+},
+
+    async loadProducts() {
+    const res = await this.api('/api/products/');
+    if (res && res.ok) {
+        this.state.products = await res.json();
+        this.render();
+    }
+},
+
+    async createProduct(data, sizes) {
+    const res = await this.api('/api/products/', 'POST', data);
+    if (res && res.ok) {
+        const product = await res.json();
+        for (const size of sizes) {
+            await this.api(`/api/products/${product.id}/sizes/`, 'POST', size);
+        }
+        this.navigate('products');
+    }
+},
+
+render() {
+    const main = document.getElementById('main-content');
+    if (!main) return;
+
+    switch (this.state.currentPage) {
+        case 'login':
+            main.innerHTML = `
                     <div class="auth-card">
                         <h2>Login</h2>
                         <div id="login-error" class="error-message"></div>
@@ -93,18 +171,196 @@ const app = {
                         </form>
                     </div>
                 `;
-                document.getElementById('login-form').onsubmit = (e) => {
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.onsubmit = (e) => {
                     e.preventDefault();
                     this.login(document.getElementById('username').value, document.getElementById('password').value);
                 };
-                break;
-            case 'dashboard':
-                main.innerHTML = `<h1>Dashboard</h1><p>Welcome back, ${this.state.user?.username}!</p>`;
-                break;
-            default:
-                main.innerHTML = `<h1>${this.state.currentPage}</h1><p>Coming soon...</p>`;
-        }
+            }
+            break;
+        case 'dashboard':
+            main.innerHTML = `<h1>Dashboard</h1><p>Welcome back, ${this.state.user?.username}!</p>`;
+            break;
+        case 'organizations':
+            main.innerHTML = `
+                    <div class="flex-between">
+                        <h1>Organizations</h1>
+                        <button class="btn btn-primary" style="width: auto;" onclick="app.showOrgForm()">Add Organization</button>
+                    </div>
+                    <div id="org-list">
+                        <table class="table">
+                            <thead><tr><th>Name</th><th>GST No</th><th>Address</th></tr></thead>
+                            <tbody>${this.state.organizations.map(o => `<tr><td>${o.name}</td><td>${o.gst_no || '-'}</td><td>${o.address || '-'}</td></tr>`).join('')}</tbody>
+                        </table>
+                    </div>
+                `;
+            break;
+        case 'contacts':
+            main.innerHTML = `
+                    <div class="flex-between">
+                        <h1>Contacts</h1>
+                        <button class="btn btn-primary" style="width: auto;" onclick="app.showContactForm()">Add Contact</button>
+                    </div>
+                    <div id="contact-list">
+                        <table class="table">
+                            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Organization</th></tr></thead>
+                            <tbody>${this.state.contacts.map(c => `<tr><td>${c.first_name} ${c.last_name}</td><td>${c.email}</td><td>${c.phone}</td><td>${c.organization_name}</td></tr>`).join('')}</tbody>
+                        </table>
+                    </div>
+                `;
+            break;
+        case 'products':
+            main.innerHTML = `
+                    <div class="flex-between">
+                        <h1>Products</h1>
+                        <button class="btn btn-primary" style="width: auto;" onclick="app.showProductForm()">Add Product</button>
+                    </div>
+                    <div id="product-list">
+                        <table class="table">
+                            <thead><tr><th>Name</th><th>SKU</th><th>Base Price</th><th>Offer %</th><th>Sizes</th></tr></thead>
+                            <tbody>${this.state.products.map(p => `
+                                <tr>
+                                    <td>${p.name}</td>
+                                    <td>${p.sku}</td>
+                                    <td>$${p.base_price}</td>
+                                    <td>${p.offer_percent}%</td>
+                                    <td>${p.sizes.map(s => `${s.size_name}: $${s.price}`).join(', ') || '-'}</td>
+                                </tr>
+                            `).join('')}</tbody>
+                        </table>
+                    </div>
+                `;
+            break;
+        default:
+            main.innerHTML = `<h1>${this.state.currentPage}</h1><p>Coming soon...</p>`;
     }
+},
+
+showOrgForm() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+            <div class="card">
+                <h2>Create Organization</h2>
+                <form id="org-form">
+                    <div class="form-group"><label>Name</label><input type="text" id="org-name" class="form-control" required></div>
+                    <div class="form-group"><label>Address</label><textarea id="org-address" class="form-control"></textarea></div>
+                    <div class="form-group"><label>GST No</label><input type="text" id="org-gst" class="form-control"></div>
+                    <div class="flex-end">
+                        <button type="button" class="btn" onclick="app.navigate('organizations')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        `;
+    document.getElementById('org-form').onsubmit = (e) => {
+        e.preventDefault();
+        this.createOrganization({
+            name: document.getElementById('org-name').value,
+            address: document.getElementById('org-address').value,
+            gst_no: document.getElementById('org-gst').value
+        });
+    };
+},
+
+showContactForm() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+            <div class="card">
+                <h2>Create Contact</h2>
+                <form id="contact-form">
+                    <div class="form-row">
+                        <div class="form-group"><label>First Name</label><input type="text" id="c-fname" class="form-control" required></div>
+                        <div class="form-group"><label>Last Name</label><input type="text" id="c-lname" class="form-control" required></div>
+                    </div>
+                    <div class="form-group"><label>Email</label><input type="email" id="c-email" class="form-control" required></div>
+                    <div class="form-group"><label>Phone</label><input type="text" id="c-phone" class="form-control" required></div>
+                    <div class="form-group">
+                        <label>Organization</label>
+                        <select id="c-org" class="form-control" required>
+                            <option value="">Select Organization</option>
+                            ${this.state.organizations.map(o => `<option value="${o.id}">${o.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="flex-end">
+                        <button type="button" class="btn" onclick="app.navigate('contacts')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        `;
+    document.getElementById('contact-form').onsubmit = (e) => {
+        e.preventDefault();
+        this.createContact({
+            first_name: document.getElementById('c-fname').value,
+            last_name: document.getElementById('c-lname').value,
+            email: document.getElementById('c-email').value,
+            phone: document.getElementById('c-phone').value,
+            organization: document.getElementById('c-org').value
+        });
+    };
+},
+
+showProductForm() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+            <div class="card">
+                <h2>Create Product</h2>
+                <form id="product-form">
+                    <div class="form-row">
+                        <div class="form-group"><label>Name</label><input type="text" id="p-name" class="form-control" required></div>
+                        <div class="form-group"><label>SKU</label><input type="text" id="p-sku" class="form-control" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Base Price</label><input type="number" step="0.01" id="p-price" class="form-control" required></div>
+                        <div class="form-group"><label>Offer Percent</label><input type="number" id="p-offer" class="form-control" value="0"></div>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem;">
+                        <span style="font-weight:600">Size Prices</span>
+                        <div id="size-rows" style="margin-top:0.5rem"></div>
+                        <button type="button" class="btn" style="background:#f1f5f9; padding:0.5rem 1rem; margin-top:0.5rem" onclick="app.addSizeRow()">+ Add Size</button>
+                    </div>
+
+                    <div class="flex-end">
+                        <button type="button" class="btn" style="background:#ccc" onclick="app.navigate('products')">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="width:auto">Save Product</button>
+                    </div>
+                </form>
+            </div>
+        `;
+    this.addSizeRow();
+    document.getElementById('product-form').onsubmit = (e) => {
+        e.preventDefault();
+        const sizeRows = document.querySelectorAll('.size-row');
+        const sizes = Array.from(sizeRows).map(row => ({
+            size_name: row.querySelector('.s-name').value,
+            price: row.querySelector('.s-price').value
+        })).filter(s => s.size_name && s.price);
+
+        this.createProduct({
+            name: document.getElementById('p-name').value,
+            sku: document.getElementById('p-sku').value,
+            base_price: document.getElementById('p-price').value,
+            offer_percent: document.getElementById('p-offer').value
+        }, sizes);
+    };
+},
+
+addSizeRow() {
+    const container = document.getElementById('size-rows');
+    const row = document.createElement('div');
+    row.className = 'form-row size-row';
+    row.style.marginBottom = '0.5rem';
+    row.innerHTML = `
+            <input type="text" placeholder="Size (e.g. S, M, L)" class="form-control s-name" required>
+            <div style="display:flex; gap:0.5rem">
+                <input type="number" step="0.01" placeholder="Price" class="form-control s-price" required>
+                <button type="button" class="btn" style="background:#fee2e2; color:#ef4444; padding:0 0.75rem" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+    container.appendChild(row);
+}
 };
 
 document.addEventListener('DOMContentLoaded', () => app.init());
