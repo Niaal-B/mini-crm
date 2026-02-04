@@ -141,3 +141,7 @@ class HealthCheckView(views.APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request):
         return Response({"status": "ok", "app": "mini_crm", "version": "0.1"})
+
+from django.shortcuts import render
+def index_page(request):
+    return render(request, 'index.html')

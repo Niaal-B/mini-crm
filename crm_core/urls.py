@@ -1,13 +1,13 @@
-from django.urls import path
 from .views import (
     OrganizationListCreateView, OrganizationRetrieveUpdateDestroyView,
     ContactListCreateView, ContactRetrieveUpdateDestroyView,
     ProductListCreateView, ProductRetrieveUpdateDestroyView,
     SizePriceCreateView, OrderListCreateView, OrderDetailView,
-    LoginView, AdminStatsView
+    LoginView, AdminStatsView, index_page
 )
 
 urlpatterns = [
+    path('', index_page, name='index'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('admin/stats/', AdminStatsView.as_view(), name='admin-stats'),
     
