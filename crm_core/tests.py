@@ -7,7 +7,7 @@ class ModelLogicTest(TestCase):
     def test_order_number_generation(self):
         order_no = generate_order_number()
         self.assertTrue(order_no.startswith('ORD-'))
-        self.assertEqual(len(order_no), 22) # ORD-YYYYMMDD-XXXXXXXX
+        self.assertEqual(len(order_no), 21) # ORD-YYYYMMDD-XXXXXXXX
 
     def test_price_calculation_fallback(self):
         product = Product.objects.create(name="Test Prod", sku="TP1", base_price=Decimal('100.00'))

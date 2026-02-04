@@ -1,76 +1,78 @@
-token: localStorage.getItem('access_token'),
-    user: JSON.parse(localStorage.getItem('user')),
+const app = {
+    state: {
+        token: localStorage.getItem('access_token'),
+        user: JSON.parse(localStorage.getItem('user')),
         currentPage: 'dashboard',
-            organizations: [],
-                contacts: [],
-                    products: [],
-                        orders: [],
+        organizations: [],
+        contacts: [],
+        products: [],
+        orders: [],
     },
 
-init() {
-    console.log('App initialization...');
-    this.renderNav();
-    if (!this.state.token) {
-        this.navigate('login');
-    } else {
-        this.navigate('dashboard');
-    }
-},
-
-navigate(page) {
-    this.state.currentPage = page;
-    if (page === 'organizations') this.loadOrganizations();
-    else if (page === 'contacts') {
-        this.api('/api/organizations/').then(res => res.json()).then(data => {
-            this.state.organizations = data;
-            this.loadContacts();
-        });
-    }
-    else if (page === 'products') this.loadProducts();
-    else if (page === 'orders') this.loadOrders();
-    else this.render();
-},
-
-async login(username, password) {
-    try {
-        const response = await fetch('/api/auth/login/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        const data = await response.json();
-        if (response.ok) {
-            this.state.token = data.access;
-            this.state.user = data.user;
-            localStorage.setItem('access_token', data.access);
-            localStorage.setItem('refresh_token', data.refresh);
-            localStorage.setItem('user', JSON.stringify(data.user));
-            this.renderNav();
-            this.navigate('dashboard');
+    init() {
+        console.log('App initialization...');
+        this.renderNav();
+        if (!this.state.token) {
+            this.navigate('login');
         } else {
-            throw new Error(data.error || 'Login failed');
+            this.navigate('dashboard');
         }
-    } catch (error) {
-        const errorEl = document.getElementById('login-error');
-        if (errorEl) {
-            errorEl.textContent = error.message;
-            errorEl.style.display = 'block';
+    },
+
+    navigate(page) {
+        this.state.currentPage = page;
+        if (page === 'organizations') this.loadOrganizations();
+        else if (page === 'contacts') {
+            this.api('/api/organizations/').then(res => res.json()).then(data => {
+                this.state.organizations = data;
+                this.loadContacts();
+            });
         }
-    }
-},
+        else if (page === 'products') this.loadProducts();
+        else if (page === 'orders') this.loadOrders();
+        else this.render();
+    },
 
-logout() {
-    localStorage.clear();
-    this.state.token = null;
-    this.state.user = null;
-    this.renderNav();
-    this.navigate('login');
-},
+    async login(username, password) {
+        try {
+            const response = await fetch('/api/auth/login/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                this.state.token = data.access;
+                this.state.user = data.user;
+                localStorage.setItem('access_token', data.access);
+                localStorage.setItem('refresh_token', data.refresh);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                this.renderNav();
+                this.navigate('dashboard');
+            } else {
+                throw new Error(data.error || 'Login failed');
+            }
+        } catch (error) {
+            const errorEl = document.getElementById('login-error');
+            if (errorEl) {
+                errorEl.textContent = error.message;
+                errorEl.style.display = 'block';
+            }
+        }
+    },
 
-renderNav() {
-    const navLinks = document.getElementById('nav-links');
-    if (this.state.token) {
-        navLinks.innerHTML = `
+    logout() {
+        localStorage.clear();
+        this.state.token = null;
+        this.state.user = null;
+        this.renderNav();
+        this.navigate('login');
+    },
+
+    renderNav() {
+        const navLinks = document.getElementById('nav-links');
+        if (this.state.token) {
+            navLinks.innerHTML = `
                 <a onclick="app.navigate('dashboard')">Dashboard</a>
                 <a onclick="app.navigate('organizations')">Organizations</a>
                 <a onclick="app.navigate('contacts')">Contacts</a>
@@ -78,97 +80,97 @@ renderNav() {
                 <a onclick="app.navigate('orders')">Orders</a>
                 <a onclick="app.logout()">Logout (${this.state.user.username})</a>
             `;
-    } else {
-        navLinks.innerHTML = `<a onclick="app.navigate('login')">Login</a>`;
-    }
-},
+        } else {
+            navLinks.innerHTML = `<a onclick="app.navigate('login')">Login</a>`;
+        }
+    },
 
-async api(url, method = 'GET', body = null) {
-    const headers = {
-        'Content-Type': 'application/json',
-    };
-    if (this.state.token) {
-        headers['Authorization'] = `Bearer ${this.state.token}`;
-    }
-    const options = { method, headers };
-    if (body) options.body = JSON.stringify(body);
+    async api(url, method = 'GET', body = null) {
+        const headers = {
+            'Content-Type': 'application/json',
+        };
+        if (this.state.token) {
+            headers['Authorization'] = `Bearer ${this.state.token}`;
+        }
+        const options = { method, headers };
+        if (body) options.body = JSON.stringify(body);
 
-    const response = await fetch(url, options);
-    if (response.status === 401 && this.state.token) {
-        this.logout();
-        return;
-    }
-    return response;
-},
+        const response = await fetch(url, options);
+        if (response.status === 401 && this.state.token) {
+            this.logout();
+            return;
+        }
+        return response;
+    },
 
-async loadOrganizations() {
-    const res = await this.api('/api/organizations/');
-    if (res && res.ok) {
-        this.state.organizations = await res.json();
-        this.render();
-    }
-},
+    async loadOrganizations() {
+        const res = await this.api('/api/organizations/');
+        if (res && res.ok) {
+            this.state.organizations = await res.json();
+            this.render();
+        }
+    },
 
-async loadContacts() {
-    const res = await this.api('/api/contacts/');
-    if (res && res.ok) {
-        this.state.contacts = await res.json();
-        this.render();
-    }
-},
+    async loadContacts() {
+        const res = await this.api('/api/contacts/');
+        if (res && res.ok) {
+            this.state.contacts = await res.json();
+            this.render();
+        }
+    },
 
-async createOrganization(data) {
-    const res = await this.api('/api/organizations/', 'POST', data);
-    if (res && res.ok) {
-        this.navigate('organizations');
-    }
-},
+    async createOrganization(data) {
+        const res = await this.api('/api/organizations/', 'POST', data);
+        if (res && res.ok) {
+            this.navigate('organizations');
+        }
+    },
 
-async createContact(data) {
-    const res = await this.api('/api/contacts/', 'POST', data);
-    if (res && res.ok) {
-        this.navigate('contacts');
-    }
-},
+    async createContact(data) {
+        const res = await this.api('/api/contacts/', 'POST', data);
+        if (res && res.ok) {
+            this.navigate('contacts');
+        }
+    },
 
     async loadProducts() {
-    const res = await this.api('/api/products/');
-    if (res && res.ok) {
-        this.state.products = await res.json();
-        this.render();
-    }
-},
+        const res = await this.api('/api/products/');
+        if (res && res.ok) {
+            this.state.products = await res.json();
+            this.render();
+        }
+    },
 
     async createProduct(data, sizes) {
-    const res = await this.api('/api/products/', 'POST', data);
-    if (res && res.ok) {
-        const product = await res.json();
-        for (const size of sizes) {
-            await this.api(`/api/products/${product.id}/sizes/`, 'POST', size);
+        const res = await this.api('/api/products/', 'POST', data);
+        if (res && res.ok) {
+            const product = await res.json();
+            for (const size of sizes) {
+                await this.api(`/api/products/${product.id}/sizes/`, 'POST', size);
+            }
+            this.navigate('products');
         }
-        this.navigate('products');
-    }
-},
+    },
 
     async loadOrders() {
-    const res = await this.api('/api/orders/');
-    if (res && res.ok) {
-        this.state.orders = await res.json();
-        this.render();
-    }
-},
+        const res = await this.api('/api/orders/');
+        if (res && res.ok) {
+            this.state.orders = await res.json();
+            this.render();
+        }
+    },
 
     async createOrder(data) {
-    const res = await this.api('/api/orders/', 'POST', data);
-    if (res && res.ok) {
-        const order = await res.json();
-        this.showOrderSummary(order);
-    }
-},
+        const res = await this.api('/api/orders/', 'POST', data);
+        if (res && res.ok) {
+            const order = await res.json();
+            this.showOrderSummary(order);
+        }
+    },
 
-showOrderSummary(order) {
-    const main = document.getElementById('main-content');
-    main.innerHTML = `
+    showOrderSummary(order) {
+        const main = document.getElementById('main-content');
+        main.innerHTML = `
             <div class="card">
                 <h2>Order Created: ${order.order_no}</h2>
                 <table class="table" style="margin: 1rem 0;">
@@ -181,15 +183,15 @@ showOrderSummary(order) {
                 </div>
             </div>
         `;
-},
+    },
 
-render() {
-    const main = document.getElementById('main-content');
-    if (!main) return;
+    render() {
+        const main = document.getElementById('main-content');
+        if (!main) return;
 
-    switch (this.state.currentPage) {
-        case 'login':
-            main.innerHTML = `
+        switch (this.state.currentPage) {
+            case 'login':
+                main.innerHTML = `
                     <div class="auth-card">
                         <h2>Login</h2>
                         <div id="login-error" class="error-message"></div>
@@ -206,19 +208,19 @@ render() {
                         </form>
                     </div>
                 `;
-            const loginForm = document.getElementById('login-form');
-            if (loginForm) {
-                loginForm.onsubmit = (e) => {
-                    e.preventDefault();
-                    this.login(document.getElementById('username').value, document.getElementById('password').value);
-                };
-            }
-            break;
-        case 'dashboard':
-            main.innerHTML = `<h1>Dashboard</h1><p>Welcome back, ${this.state.user?.username}!</p>`;
-            break;
-        case 'organizations':
-            main.innerHTML = `
+                const loginForm = document.getElementById('login-form');
+                if (loginForm) {
+                    loginForm.onsubmit = (e) => {
+                        e.preventDefault();
+                        this.login(document.getElementById('username').value, document.getElementById('password').value);
+                    };
+                }
+                break;
+            case 'dashboard':
+                main.innerHTML = `<h1>Dashboard</h1><p>Welcome back, ${this.state.user?.username}!</p>`;
+                break;
+            case 'organizations':
+                main.innerHTML = `
                     <div class="flex-between">
                         <h1>Organizations</h1>
                         <button class="btn btn-primary" style="width: auto;" onclick="app.showOrgForm()">Add Organization</button>
@@ -230,9 +232,9 @@ render() {
                         </table>
                     </div>
                 `;
-            break;
-        case 'contacts':
-            main.innerHTML = `
+                break;
+            case 'contacts':
+                main.innerHTML = `
                     <div class="flex-between">
                         <h1>Contacts</h1>
                         <button class="btn btn-primary" style="width: auto;" onclick="app.showContactForm()">Add Contact</button>
@@ -244,9 +246,9 @@ render() {
                         </table>
                     </div>
                 `;
-            break;
-        case 'products':
-            main.innerHTML = `
+                break;
+            case 'products':
+                main.innerHTML = `
                     <div class="flex-between">
                         <h1>Products</h1>
                         <button class="btn btn-primary" style="width: auto;" onclick="app.showProductForm()">Add Product</button>
@@ -266,9 +268,9 @@ render() {
                         </table>
                     </div>
                 `;
-            break;
-        case 'orders':
-            main.innerHTML = `
+                break;
+            case 'orders':
+                main.innerHTML = `
                     <div class="flex-between">
                         <h1>Orders</h1>
                         <button class="btn btn-primary" style="width: auto;" onclick="app.showOrderForm()">Create Order</button>
@@ -286,18 +288,18 @@ render() {
                         </table>
                     </div>
                 `;
-            break;
-        default:
-            main.innerHTML = `<h1>${this.state.currentPage}</h1><p>Coming soon...</p>`;
-    }
-},
+                break;
+            default:
+                main.innerHTML = `<h1>${this.state.currentPage}</h1><p>Coming soon...</p>`;
+        }
+    },
 
     async loadOrderDetail(id) {
-    const res = await this.api(`/api/orders/${id}/`);
-    if (res && res.ok) {
-        const order = await res.json();
-        const main = document.getElementById('main-content');
-        main.innerHTML = `
+        const res = await this.api(`/api/orders/${id}/`);
+        if (res && res.ok) {
+            const order = await res.json();
+            const main = document.getElementById('main-content');
+            main.innerHTML = `
                 <div class="card">
                     <h2>Order Details: ${order.order_no}</h2>
                     <p><strong>Contact:</strong> ${order.contact_name}</p>
@@ -310,18 +312,18 @@ render() {
                     </div>
                 </div>
             `;
-    }
-},
+        }
+    },
 
     async showOrderForm() {
-    const main = document.getElementById('main-content');
-    // Load dependencies
-    const [orgsRes, prodRes] = await Promise.all([this.api('/api/organizations/'), this.api('/api/products/')]);
-    const organizations = await orgsRes.json();
-    const products = await prodRes.json();
-    this.state.products = products;
+        const main = document.getElementById('main-content');
+        // Load dependencies
+        const [orgsRes, prodRes] = await Promise.all([this.api('/api/organizations/'), this.api('/api/products/')]);
+        const organizations = await orgsRes.json();
+        const products = await prodRes.json();
+        this.state.products = products;
 
-    main.innerHTML = `
+        main.innerHTML = `
             <div class="card">
                 <h2>Create Order</h2>
                 <form id="order-form">
@@ -350,42 +352,42 @@ render() {
             </div>
         `;
 
-    // Populate contacts
-    this.api('/api/contacts/').then(res => res.json()).then(contacts => {
-        const select = document.getElementById('o-contact');
-        contacts.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            opt.textContent = `${c.first_name} ${c.last_name}`;
-            select.appendChild(opt);
+        // Populate contacts
+        this.api('/api/contacts/').then(res => res.json()).then(contacts => {
+            const select = document.getElementById('o-contact');
+            contacts.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `${c.first_name} ${c.last_name}`;
+                select.appendChild(opt);
+            });
         });
-    });
 
-    this.addItemRow();
-    document.getElementById('order-form').onsubmit = (e) => {
-        e.preventDefault();
-        const rows = document.querySelectorAll('.item-row');
-        const items = Array.from(rows).map(row => ({
-            product_id: parseInt(row.querySelector('.i-prod').value),
-            size_name: row.querySelector('.i-size').value,
-            qty: parseInt(row.querySelector('.i-qty').value),
-            customization: row.querySelector('.i-cust').value
-        })).filter(i => i.product_id && i.size_name);
+        this.addItemRow();
+        document.getElementById('order-form').onsubmit = (e) => {
+            e.preventDefault();
+            const rows = document.querySelectorAll('.item-row');
+            const items = Array.from(rows).map(row => ({
+                product_id: parseInt(row.querySelector('.i-prod').value),
+                size_name: row.querySelector('.i-size').value,
+                qty: parseInt(row.querySelector('.i-qty').value),
+                customization: row.querySelector('.i-cust').value
+            })).filter(i => i.product_id && i.size_name);
 
-        this.createOrder({
-            contact: parseInt(document.getElementById('o-contact').value),
-            items: items
-        });
-    };
-},
+            this.createOrder({
+                contact: parseInt(document.getElementById('o-contact').value),
+                items: items
+            });
+        };
+    },
 
-addItemRow() {
-    const container = document.getElementById('item-rows');
-    const row = document.createElement('div');
-    row.className = 'card item-row';
-    row.style.padding = '1rem';
-    row.style.marginBottom = '1rem';
-    row.innerHTML = `
+    addItemRow() {
+        const container = document.getElementById('item-rows');
+        const row = document.createElement('div');
+        row.className = 'card item-row';
+        row.style.padding = '1rem';
+        row.style.marginBottom = '1rem';
+        row.innerHTML = `
             <div class="form-row">
                 <div class="form-group">
                     <label>Product</label>
@@ -416,68 +418,68 @@ addItemRow() {
                 <button type="button" class="btn" style="background:#fee2e2; color:#ef4444; padding:0.5rem" onclick="this.parentElement.parentElement.remove(); app.updateOrderTotal()">Remove</button>
             </div>
         `;
-    container.appendChild(row);
-},
+        container.appendChild(row);
+    },
 
-onOrderProductChange(select) {
-    const row = select.parentElement.parentElement.parentElement;
-    const productId = select.value;
-    const sizeSelect = row.querySelector('.i-size');
-    sizeSelect.innerHTML = '<option value="">Select Size</option>';
-
-    if (productId) {
-        const product = this.state.products.find(p => p.id == productId);
-        if (product) {
-            // Add sizes
-            product.sizes.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s.size_name;
-                opt.dataset.price = s.price;
-                opt.textContent = `${s.size_name} ($${s.price})`;
-                sizeSelect.appendChild(opt);
-            });
-            // Add base price option as fallback
-            const opt = document.createElement('option');
-            opt.value = "Default";
-            opt.dataset.price = product.base_price;
-            opt.textContent = `Default ($${product.base_price})`;
-            sizeSelect.appendChild(opt);
-        }
-    }
-    this.updateOrderTotal();
-},
-
-updateOrderTotal() {
-    let total = 0;
-    const rows = document.querySelectorAll('.item-row');
-    rows.forEach(row => {
-        const prodId = row.querySelector('.i-prod').value;
+    onOrderProductChange(select) {
+        const row = select.parentElement.parentElement.parentElement;
+        const productId = select.value;
         const sizeSelect = row.querySelector('.i-size');
-        const qty = parseInt(row.querySelector('.i-qty').value) || 0;
-        const priceInfo = row.querySelector('.item-price-info');
+        sizeSelect.innerHTML = '<option value="">Select Size</option>';
 
-        if (prodId && sizeSelect.value) {
-            const product = this.state.products.find(p => p.id == prodId);
-            const sizeOpt = sizeSelect.options[sizeSelect.selectedIndex];
-            let price = parseFloat(sizeOpt.dataset.price);
-
-            if (product && product.offer_percent > 0) {
-                price = price * (1 - product.offer_percent / 100);
+        if (productId) {
+            const product = this.state.products.find(p => p.id == productId);
+            if (product) {
+                // Add sizes
+                product.sizes.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.size_name;
+                    opt.dataset.price = s.price;
+                    opt.textContent = `${s.size_name} ($${s.price})`;
+                    sizeSelect.appendChild(opt);
+                });
+                // Add base price option as fallback
+                const opt = document.createElement('option');
+                opt.value = "Default";
+                opt.dataset.price = product.base_price;
+                opt.textContent = `Default ($${product.base_price})`;
+                sizeSelect.appendChild(opt);
             }
-
-            total += price * qty;
-            priceInfo.textContent = `Unit Price: $${price.toFixed(2)} (Subtotal: $${(price * qty).toFixed(2)})`;
-        } else {
-            priceInfo.textContent = '';
         }
-    });
-    const summary = document.getElementById('order-summary');
-    if (summary) summary.innerHTML = `<h3>Total: $${total.toFixed(2)}</h3>`;
-},
+        this.updateOrderTotal();
+    },
 
-showOrgForm() {
-    const main = document.getElementById('main-content');
-    main.innerHTML = `
+    updateOrderTotal() {
+        let total = 0;
+        const rows = document.querySelectorAll('.item-row');
+        rows.forEach(row => {
+            const prodId = row.querySelector('.i-prod').value;
+            const sizeSelect = row.querySelector('.i-size');
+            const qty = parseInt(row.querySelector('.i-qty').value) || 0;
+            const priceInfo = row.querySelector('.item-price-info');
+
+            if (prodId && sizeSelect.value) {
+                const product = this.state.products.find(p => p.id == prodId);
+                const sizeOpt = sizeSelect.options[sizeSelect.selectedIndex];
+                let price = parseFloat(sizeOpt.dataset.price);
+
+                if (product && product.offer_percent > 0) {
+                    price = price * (1 - product.offer_percent / 100);
+                }
+
+                total += price * qty;
+                priceInfo.textContent = `Unit Price: $${price.toFixed(2)} (Subtotal: $${(price * qty).toFixed(2)})`;
+            } else {
+                priceInfo.textContent = '';
+            }
+        });
+        const summary = document.getElementById('order-summary');
+        if (summary) summary.innerHTML = `<h3>Total: $${total.toFixed(2)}</h3>`;
+    },
+
+    showOrgForm() {
+        const main = document.getElementById('main-content');
+        main.innerHTML = `
             <div class="card">
                 <h2>Create Organization</h2>
                 <form id="org-form">
@@ -491,19 +493,19 @@ showOrgForm() {
                 </form>
             </div>
         `;
-    document.getElementById('org-form').onsubmit = (e) => {
-        e.preventDefault();
-        this.createOrganization({
-            name: document.getElementById('org-name').value,
-            address: document.getElementById('org-address').value,
-            gst_no: document.getElementById('org-gst').value
-        });
-    };
-},
+        document.getElementById('org-form').onsubmit = (e) => {
+            e.preventDefault();
+            this.createOrganization({
+                name: document.getElementById('org-name').value,
+                address: document.getElementById('org-address').value,
+                gst_no: document.getElementById('org-gst').value
+            });
+        };
+    },
 
-showContactForm() {
-    const main = document.getElementById('main-content');
-    main.innerHTML = `
+    showContactForm() {
+        const main = document.getElementById('main-content');
+        main.innerHTML = `
             <div class="card">
                 <h2>Create Contact</h2>
                 <form id="contact-form">
@@ -527,21 +529,21 @@ showContactForm() {
                 </form>
             </div>
         `;
-    document.getElementById('contact-form').onsubmit = (e) => {
-        e.preventDefault();
-        this.createContact({
-            first_name: document.getElementById('c-fname').value,
-            last_name: document.getElementById('c-lname').value,
-            email: document.getElementById('c-email').value,
-            phone: document.getElementById('c-phone').value,
-            organization: document.getElementById('c-org').value
-        });
-    };
-},
+        document.getElementById('contact-form').onsubmit = (e) => {
+            e.preventDefault();
+            this.createContact({
+                first_name: document.getElementById('c-fname').value,
+                last_name: document.getElementById('c-lname').value,
+                email: document.getElementById('c-email').value,
+                phone: document.getElementById('c-phone').value,
+                organization: document.getElementById('c-org').value
+            });
+        };
+    },
 
-showProductForm() {
-    const main = document.getElementById('main-content');
-    main.innerHTML = `
+    showProductForm() {
+        const main = document.getElementById('main-content');
+        main.innerHTML = `
             <div class="card">
                 <h2>Create Product</h2>
                 <form id="product-form">
@@ -567,38 +569,38 @@ showProductForm() {
                 </form>
             </div>
         `;
-    this.addSizeRow();
-    document.getElementById('product-form').onsubmit = (e) => {
-        e.preventDefault();
-        const sizeRows = document.querySelectorAll('.size-row');
-        const sizes = Array.from(sizeRows).map(row => ({
-            size_name: row.querySelector('.s-name').value,
-            price: row.querySelector('.s-price').value
-        })).filter(s => s.size_name && s.price);
+        this.addSizeRow();
+        document.getElementById('product-form').onsubmit = (e) => {
+            e.preventDefault();
+            const sizeRows = document.querySelectorAll('.size-row');
+            const sizes = Array.from(sizeRows).map(row => ({
+                size_name: row.querySelector('.s-name').value,
+                price: row.querySelector('.s-price').value
+            })).filter(s => s.size_name && s.price);
 
-        this.createProduct({
-            name: document.getElementById('p-name').value,
-            sku: document.getElementById('p-sku').value,
-            base_price: document.getElementById('p-price').value,
-            offer_percent: document.getElementById('p-offer').value
-        }, sizes);
-    };
-},
+            this.createProduct({
+                name: document.getElementById('p-name').value,
+                sku: document.getElementById('p-sku').value,
+                base_price: document.getElementById('p-price').value,
+                offer_percent: document.getElementById('p-offer').value
+            }, sizes);
+        };
+    },
 
-addSizeRow() {
-    const container = document.getElementById('size-rows');
-    const row = document.createElement('div');
-    row.className = 'form-row size-row';
-    row.style.marginBottom = '0.5rem';
-    row.innerHTML = `
+    addSizeRow() {
+        const container = document.getElementById('size-rows');
+        const row = document.createElement('div');
+        row.className = 'form-row size-row';
+        row.style.marginBottom = '0.5rem';
+        row.innerHTML = `
             <input type="text" placeholder="Size (e.g. S, M, L)" class="form-control s-name" required>
             <div style="display:flex; gap:0.5rem">
                 <input type="number" step="0.01" placeholder="Price" class="form-control s-price" required>
                 <button type="button" class="btn" style="background:#fee2e2; color:#ef4444; padding:0 0.75rem" onclick="this.parentElement.parentElement.remove()">×</button>
             </div>
         `;
-    container.appendChild(row);
-}
+        container.appendChild(row);
+    }
 };
 
 document.addEventListener('DOMContentLoaded', () => app.init());

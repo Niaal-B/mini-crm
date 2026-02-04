@@ -19,14 +19,6 @@ from django.urls import path, include
 from crm_core.views import HealthCheckView
 
 urlpatterns = [
-    path('admin/', admin.site.name), # changed from admin.site.urls for simplicity in startproject
-    path('health/', HealthCheckView.as_view(), name='health'),
-    path('api/', include('crm_core.urls')),
-]
-
-# Note: correcting admin.site.urls if it was wrong
-from django.contrib import admin
-urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', HealthCheckView.as_view(), name='health'),
     path('api/', include('crm_core.urls')),
