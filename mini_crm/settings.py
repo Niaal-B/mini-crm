@@ -37,7 +37,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'crm_core',
 ]
+
+AUTH_USER_MODEL = 'crm_core.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
