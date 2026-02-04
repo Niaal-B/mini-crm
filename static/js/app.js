@@ -4,6 +4,7 @@ token: localStorage.getItem('access_token'),
             organizations: [],
                 contacts: [],
                     products: [],
+                        orders: [],
     },
 
 init() {
@@ -26,6 +27,7 @@ navigate(page) {
         });
     }
     else if (page === 'products') this.loadProducts();
+    else if (page === 'orders') this.loadOrders();
     else this.render();
 },
 
@@ -148,6 +150,39 @@ async createContact(data) {
     }
 },
 
+    async loadOrders() {
+    const res = await this.api('/api/orders/');
+    if (res && res.ok) {
+        this.state.orders = await res.json();
+        this.render();
+    }
+},
+
+    async createOrder(data) {
+    const res = await this.api('/api/orders/', 'POST', data);
+    if (res && res.ok) {
+        const order = await res.json();
+        this.showOrderSummary(order);
+    }
+},
+
+showOrderSummary(order) {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+            <div class="card">
+                <h2>Order Created: ${order.order_no}</h2>
+                <table class="table" style="margin: 1rem 0;">
+                    <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Total</th></tr></thead>
+                    <tbody>${order.items.map(i => `<tr><td>${i.product_name}</td><td>$${i.unit_price}</td><td>${i.qty}</td><td>$${i.line_total}</td></tr>`).join('')}</tbody>
+                </table>
+                <h3 style="text-align:right">Grand Total: $${order.order_total}</h3>
+                <div class="flex-end" style="margin-top:2rem">
+                    <button class="btn btn-primary" style="width:auto" onclick="app.navigate('orders')">Back to Orders</button>
+                </div>
+            </div>
+        `;
+},
+
 render() {
     const main = document.getElementById('main-content');
     if (!main) return;
@@ -232,9 +267,212 @@ render() {
                     </div>
                 `;
             break;
+        case 'orders':
+            main.innerHTML = `
+                    <div class="flex-between">
+                        <h1>Orders</h1>
+                        <button class="btn btn-primary" style="width: auto;" onclick="app.showOrderForm()">Create Order</button>
+                    </div>
+                    <div id="order-list">
+                        <table class="table">
+                            <thead><tr><th>Order No</th><th>Contact</th><th>Date</th></tr></thead>
+                            <tbody>${this.state.orders.map(o => `
+                                <tr style="cursor:pointer" onclick="app.loadOrderDetail(${o.id})">
+                                    <td>${o.order_no}</td>
+                                    <td>${o.contact_name}</td>
+                                    <td>${new Date(o.created_at).toLocaleDateString()}</td>
+                                </tr>
+                            `).join('')}</tbody>
+                        </table>
+                    </div>
+                `;
+            break;
         default:
             main.innerHTML = `<h1>${this.state.currentPage}</h1><p>Coming soon...</p>`;
     }
+},
+
+    async loadOrderDetail(id) {
+    const res = await this.api(`/api/orders/${id}/`);
+    if (res && res.ok) {
+        const order = await res.json();
+        const main = document.getElementById('main-content');
+        main.innerHTML = `
+                <div class="card">
+                    <h2>Order Details: ${order.order_no}</h2>
+                    <p><strong>Contact:</strong> ${order.contact_name}</p>
+                    <table class="table" style="margin: 1rem 0;">
+                        <thead><tr><th>Product</th><th>Size</th><th>Price</th><th>Qty</th><th>Total</th></tr></thead>
+                        <tbody>${order.items.map(i => `<tr><td>${i.product_name}</td><td>${i.size_name}</td><td>$${i.unit_price}</td><td>${i.qty}</td><td>$${i.line_total}</td></tr>`).join('')}</tbody>
+                    </table>
+                    <div class="flex-end">
+                        <button class="btn btn-primary" style="width:auto" onclick="app.navigate('orders')">Back</button>
+                    </div>
+                </div>
+            `;
+    }
+},
+
+    async showOrderForm() {
+    const main = document.getElementById('main-content');
+    // Load dependencies
+    const [orgsRes, prodRes] = await Promise.all([this.api('/api/organizations/'), this.api('/api/products/')]);
+    const organizations = await orgsRes.json();
+    const products = await prodRes.json();
+    this.state.products = products;
+
+    main.innerHTML = `
+            <div class="card">
+                <h2>Create Order</h2>
+                <form id="order-form">
+                    <div class="form-group">
+                        <label>Select Contact</label>
+                        <select id="o-contact" class="form-control" required>
+                            <option value="">Select Contact</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <span style="font-weight:600">Line Items</span>
+                        <div id="item-rows" style="margin-top:0.5rem"></div>
+                        <button type="button" class="btn" style="background:#f1f5f9; padding:0.5rem 1rem; margin-top:0.5rem" onclick="app.addItemRow()">+ Add Item</button>
+                    </div>
+
+                    <div id="order-summary" style="margin-top:2rem; text-align:right">
+                        <h3>Total: $0.00</h3>
+                    </div>
+
+                    <div class="flex-end">
+                        <button type="button" class="btn" style="background:#ccc" onclick="app.navigate('orders')">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="width:auto">Place Order</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+    // Populate contacts
+    this.api('/api/contacts/').then(res => res.json()).then(contacts => {
+        const select = document.getElementById('o-contact');
+        contacts.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.first_name} ${c.last_name}`;
+            select.appendChild(opt);
+        });
+    });
+
+    this.addItemRow();
+    document.getElementById('order-form').onsubmit = (e) => {
+        e.preventDefault();
+        const rows = document.querySelectorAll('.item-row');
+        const items = Array.from(rows).map(row => ({
+            product_id: parseInt(row.querySelector('.i-prod').value),
+            size_name: row.querySelector('.i-size').value,
+            qty: parseInt(row.querySelector('.i-qty').value),
+            customization: row.querySelector('.i-cust').value
+        })).filter(i => i.product_id && i.size_name);
+
+        this.createOrder({
+            contact: parseInt(document.getElementById('o-contact').value),
+            items: items
+        });
+    };
+},
+
+addItemRow() {
+    const container = document.getElementById('item-rows');
+    const row = document.createElement('div');
+    row.className = 'card item-row';
+    row.style.padding = '1rem';
+    row.style.marginBottom = '1rem';
+    row.innerHTML = `
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Product</label>
+                    <select class="form-control i-prod" required onchange="app.onOrderProductChange(this)">
+                        <option value="">Select Product</option>
+                        ${this.state.products.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Size</label>
+                    <select class="form-control i-size" required onchange="app.updateOrderTotal()">
+                        <option value="">Select Size</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" class="form-control i-qty" value="1" min="1" required onchange="app.updateOrderTotal()">
+                </div>
+                <div class="form-group">
+                    <label>Customization</label>
+                    <input type="text" class="form-control i-cust">
+                </div>
+            </div>
+            <div class="flex-between" style="margin-bottom:0">
+                <span class="item-price-info" style="font-size:0.875rem; color:var(--text-muted)"></span>
+                <button type="button" class="btn" style="background:#fee2e2; color:#ef4444; padding:0.5rem" onclick="this.parentElement.parentElement.remove(); app.updateOrderTotal()">Remove</button>
+            </div>
+        `;
+    container.appendChild(row);
+},
+
+onOrderProductChange(select) {
+    const row = select.parentElement.parentElement.parentElement;
+    const productId = select.value;
+    const sizeSelect = row.querySelector('.i-size');
+    sizeSelect.innerHTML = '<option value="">Select Size</option>';
+
+    if (productId) {
+        const product = this.state.products.find(p => p.id == productId);
+        if (product) {
+            // Add sizes
+            product.sizes.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.size_name;
+                opt.dataset.price = s.price;
+                opt.textContent = `${s.size_name} ($${s.price})`;
+                sizeSelect.appendChild(opt);
+            });
+            // Add base price option as fallback
+            const opt = document.createElement('option');
+            opt.value = "Default";
+            opt.dataset.price = product.base_price;
+            opt.textContent = `Default ($${product.base_price})`;
+            sizeSelect.appendChild(opt);
+        }
+    }
+    this.updateOrderTotal();
+},
+
+updateOrderTotal() {
+    let total = 0;
+    const rows = document.querySelectorAll('.item-row');
+    rows.forEach(row => {
+        const prodId = row.querySelector('.i-prod').value;
+        const sizeSelect = row.querySelector('.i-size');
+        const qty = parseInt(row.querySelector('.i-qty').value) || 0;
+        const priceInfo = row.querySelector('.item-price-info');
+
+        if (prodId && sizeSelect.value) {
+            const product = this.state.products.find(p => p.id == prodId);
+            const sizeOpt = sizeSelect.options[sizeSelect.selectedIndex];
+            let price = parseFloat(sizeOpt.dataset.price);
+
+            if (product && product.offer_percent > 0) {
+                price = price * (1 - product.offer_percent / 100);
+            }
+
+            total += price * qty;
+            priceInfo.textContent = `Unit Price: $${price.toFixed(2)} (Subtotal: $${(price * qty).toFixed(2)})`;
+        } else {
+            priceInfo.textContent = '';
+        }
+    });
+    const summary = document.getElementById('order-summary');
+    if (summary) summary.innerHTML = `<h3>Total: $${total.toFixed(2)}</h3>`;
 },
 
 showOrgForm() {
